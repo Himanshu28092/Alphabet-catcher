@@ -15,8 +15,8 @@
             --text-color: #ffffff;
             --accent-color: #ffca28;
             --font-family: 'Fredoka One', cursive;
-            --correct-color: #66bb6a; /* Green for caught letters */
-            --wrong-color: #ef5350; /* Red for wrong catch flash */
+            --correct-color: #66bb6a;
+            --wrong-color: #ef5350;
         }
         * { box-sizing: border-box; }
         body, html {
@@ -30,7 +30,7 @@
             width: 100%; height: 100%; position: relative;
             background-image: linear-gradient(to bottom, var(--bg-color), #a3d9f0);
             display: flex; align-items: center; justify-content: center;
-            transition: background-color 0.2s; /* For wrong catch flash */
+            transition: background-color 0.2s;
         }
         #game-area {
             width: 100%; max-width: 600px; height: 100%;
@@ -57,11 +57,7 @@
             color: var(--correct-color);
             transform: scale(1.1);
         }
-        #stats-bar {
-            display: flex;
-            width: 100%;
-            justify-content: space-around;
-        }
+        #stats-bar { display: flex; width: 100%; justify-content: space-around; }
         #player-basket {
             width: 80px; height: 60px; font-size: 50px;
             text-align: center; position: absolute; bottom: 20px;
@@ -120,10 +116,15 @@
         </div>
     </div>
     
+    <!-- FIX: Updated audio paths to remove the '/sounds' subdirectory -->
+    <audio id="success-sound" src="assets/success.mp3"></audio>
+    <audio id="fail-sound" src="assets/fail.mp3"></audio>
+    <audio id="word-complete-sound" src="assets/word-complete.mp3"></audio>
+    <audio id="bg-music" src="assets/bg-music.mp3" loop></audio>
+    
     <script>
         document.addEventListener('DOMContentLoaded', () => {
 
-            // --- DOM Elements ---
             const gameArea = document.getElementById('game-area');
             const playerBasket = document.getElementById('player-basket');
             const scoreDisplay = document.getElementById('score-display');
@@ -135,8 +136,13 @@
             const playAgainBtn = document.getElementById('play-again-btn');
             const finalScoreDisplay = document.getElementById('final-score');
             const highScoreDisplay = document.getElementById('high-score');
+            
+            // Audio elements
+            const successSound = document.getElementById('success-sound');
+            const failSound = document.getElementById('fail-sound');
+            const wordCompleteSound = document.getElementById('word-complete-sound');
+            const bgMusic = document.getElementById('bg-music');
 
-            // --- Game State & Variables ---
             const WORD_LIST = ['APPLE', 'BALL', 'CAT', 'DOG', 'STAR', 'FROG', 'DUCK', 'TREE'];
             const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
             let score, wrongTries, targetWord, currentLetterIndex;
@@ -145,11 +151,15 @@
             let highScore = localStorage.getItem('wordCatcherHighScore') || 0;
             
             let isDragging = false;
+            
+            // Helper to play sounds safely
+            function playSound(soundElement) {
+                soundElement.currentTime = 0;
+                soundElement.play().catch(e => console.error("Sound play failed:", e));
+            }
 
             function startGame() {
-                score = 0;
-                wrongTries = 0;
-                fallingSpeed = 3;
+                score = 0; wrongTries = 0; fallingSpeed = 3;
                 if (fallingLetters) fallingLetters.forEach(letter => letter.element.remove());
                 fallingLetters = [];
 
@@ -158,6 +168,8 @@
                 startScreen.style.display = 'none';
                 gameOverScreen.style.display = 'none';
                 
+                playSound(bgMusic);
+
                 setNewTargetWord();
                 gameLoopInterval = setInterval(gameLoop, 1000 / 60);
                 spawnInterval = setInterval(spawnLetter, 1000);
@@ -184,31 +196,27 @@
                 const requiredLetter = targetWord[currentLetterIndex];
 
                 if (caughtLetter.char === requiredLetter) {
-                    // --- Correct letter caught ---
-                    // Visual feedback: Make the letter green
+                    playSound(successSound); // FIX: Play sound on correct catch
                     const targetSpans = targetWordContainer.children;
                     targetSpans[currentLetterIndex].classList.add('caught');
-                    
                     currentLetterIndex++;
                     
-                    // Check if word is complete
                     if (currentLetterIndex >= targetWord.length) {
+                        playSound(wordCompleteSound); // FIX: Play sound on word completion
                         score++;
                         updateScoreDisplay();
-                        fallingSpeed += 0.5; // Increase speed for next word
-                        // Wait a bit, then set a new word
+                        fallingSpeed += 0.5;
                         setTimeout(setNewTargetWord, 800);
                     }
 
                 } else {
-                    // --- Wrong letter caught ---
+                    playSound(failSound); // FIX: Play sound on wrong catch
                     wrongTries++;
                     triesDisplay.textContent = `Wrong: ${wrongTries}`;
-                    // Visual feedback: Flash the screen red
                     gameArea.style.backgroundColor = 'var(--wrong-color)';
                     setTimeout(() => gameArea.style.backgroundColor = '', 200);
 
-                    if (wrongTries >= 5) { // End game after 5 mistakes
+                    if (wrongTries >= 5) {
                         endGame();
                     }
                 }
@@ -216,21 +224,12 @@
 
             function spawnLetter() {
                 const requiredLetter = targetWord[currentLetterIndex];
-                let char;
-
-                // 40% chance to spawn the required letter, otherwise a random one
-                if (Math.random() < 0.4 && requiredLetter) {
-                    char = requiredLetter;
-                } else {
-                    char = ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
-                }
-
+                let char = (Math.random() < 0.4 && requiredLetter) ? requiredLetter : ALPHABET[Math.floor(Math.random() * ALPHABET.length)];
+                
                 const element = document.createElement('div');
                 element.className = 'falling-letter';
                 element.textContent = char;
-                
-                const x = Math.random() * (gameArea.clientWidth - 60);
-                element.style.left = x + 'px';
+                element.style.left = `${Math.random() * (gameArea.clientWidth - 60)}px`;
                 element.style.top = '-60px';
                 element.style.backgroundColor = `hsl(${Math.random() * 360}, 90%, 70%)`;
 
@@ -241,6 +240,7 @@
             function endGame() {
                 clearInterval(gameLoopInterval);
                 clearInterval(spawnInterval);
+                bgMusic.pause();
 
                 if (score > highScore) {
                     highScore = score;
@@ -256,14 +256,7 @@
                 targetWord = WORD_LIST[Math.floor(Math.random() * WORD_LIST.length)];
                 currentLetterIndex = 0;
                 
-                // Display the word as individual letters
-                targetWordContainer.innerHTML = '';
-                targetWord.split('').forEach(letter => {
-                    const span = document.createElement('span');
-                    span.className = 'target-letter';
-                    span.textContent = letter;
-                    targetWordContainer.appendChild(span);
-                });
+                targetWordContainer.innerHTML = targetWord.split('').map(letter => `<span class="target-letter">${letter}</span>`).join('');
             }
 
             function updateScoreDisplay() {
@@ -284,7 +277,7 @@
                 const maxLeft = gameArea.clientWidth - playerBasket.clientWidth;
                 let leftPos = newX - playerBasket.clientWidth / 2;
                 leftPos = Math.max(minLeft, Math.min(leftPos, maxLeft));
-                playerBasket.style.left = leftPos + 'px';
+                playerBasket.style.left = `${leftPos}px`;
             }
             
             window.addEventListener('keydown', (e) => {
@@ -304,4 +297,4 @@
         });
     </script>
 </body>
-</html>
+    </html>
